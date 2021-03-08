@@ -8,6 +8,10 @@ namespace ht16k33_alpha {
 
 static const char *TAG = "ht16k33_alpha";
 
+static const int NumberOfCharacters = 4; // Set to 6 for 6-digit display
+static int displayBufferSize = 8;
+uint16_t fonttable[sizeof(alphafonttable)];
+
 // First set bit determines command, bits after that are the data.
 static const uint8_t DISPLAY_COMMAND_SET_DDRAM_ADDR = 0x00;
 static const uint8_t DISPLAY_COMMAND_SYSTEM_SETUP = 0x21;
@@ -16,6 +20,12 @@ static const uint8_t DISPLAY_COMMAND_DISPLAY_ON = 0x81;
 static const uint8_t DISPLAY_COMMAND_DIMMING = 0xE0;
 
 void HT16K33AlphaDisplay::setup() {
+    if (NumberOfCharacters == 6) {
+        displayBufferSize = 12;
+        memcpy(fonttable, alphafonttable_6digit, sizeof(alphafonttable_6digit));
+    } else {
+        memcpy(fonttable, alphafonttable, sizeof(alphafonttable));
+    }
   for (auto *display : this->displays_) {
     display->write_bytes(DISPLAY_COMMAND_SYSTEM_SETUP, nullptr, 0);
     display->write_bytes(DISPLAY_COMMAND_DISPLAY_ON, nullptr, 0);
@@ -26,7 +36,7 @@ void HT16K33AlphaDisplay::setup() {
 
 void HT16K33AlphaDisplay::loop() {
   unsigned long now = millis();
-  int numc = this->displays_.size() * 8;
+  int numc = this->displays_.size() * displayBufferSize;
   // check if the buffer has shrunk past the current position since last update
   if (this->offset_ + numc > this->buffer_fill_) {
     this->offset_ = max(this->buffer_fill_ - numc, 0);
@@ -55,8 +65,8 @@ float HT16K33AlphaDisplay::get_setup_priority() const { return setup_priority::P
 void HT16K33AlphaDisplay::display_() {
   int offset = this->offset_;
   for (auto *display : this->displays_) {
-    display->write_bytes(DISPLAY_COMMAND_SET_DDRAM_ADDR, this->buffer_ + offset, 8);
-    offset += 8;
+    display->write_bytes(DISPLAY_COMMAND_SET_DDRAM_ADDR, this->buffer_ + offset, displayBufferSize);
+    offset += displayBufferSize;
   }
 }
 
@@ -106,7 +116,7 @@ void HT16K33AlphaDisplay::print(const char *str) {
     if (c > 127)
       fontc = 0;
     else
-      fontc = pgm_read_word(&alphafonttable[c]);
+      fontc = pgm_read_word(&fonttable[c]);
     c = *reinterpret_cast<const uint8_t *>(str);
     if (c == '.') {
       fontc |= 0x4000;
